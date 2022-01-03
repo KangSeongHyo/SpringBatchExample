@@ -1,6 +1,7 @@
 package com.example.spbh;
 
 
+import lombok.Getter;
 import lombok.ToString;
 
 import javax.persistence.Entity;
@@ -8,6 +9,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.NamedQuery;
 
+@Getter
 @Entity
 @NamedQuery(name = "input",query = "SELECT i FROM Input i")
 @ToString
@@ -15,7 +17,9 @@ public class Input {
 
     @Id
     @GeneratedValue
-    Long id;
+    private Long id;
 
-    String value;
+    private String value;
+
+    private String type;
 }

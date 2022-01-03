@@ -9,16 +9,16 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.database.JpaPagingItemReader;
+import org.springframework.batch.item.database.builder.JpaItemWriterBuilder;
 import org.springframework.batch.item.database.orm.JpaNamedQueryProvider;
+import org.springframework.batch.item.support.ClassifierCompositeItemProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-import java.util.List;
 
 @Slf4j
 @EnableBatchProcessing
@@ -44,26 +44,39 @@ public class BatchExample {
     private static int process = 0;
     private static int writer = 0;
 
+    private final AItemProcessor aItemProcessor;
+    private final BItemProcessor bItemProcessor;
+    private final OtherItemProcessor otherItemProcessor;
+
     @Bean
-    public Step step(JpaPagingItemReader<Input> jpaPagingItemReader){
+    public Step step(JpaPagingItemReader<Input> jpaPagingItemReader,JpaItemWriter<Output> jpaItemWriter){
+
+        ClassifierCompositeItemProcessor<Input, Output> processor = new ClassifierCompositeItemProcessor<>();
+
+         processor.setClassifier(input -> {
+            switch (input.getType()){
+                case "A" :
+                    return aItemProcessor;
+                case "B" :
+                    return bItemProcessor;
+                default:
+                    return otherItemProcessor;
+            }
+        });
+
         return stepBuilderFactory.get("Chunk")
-                .<Input,Output>chunk(3)
+                .<Input,Output>chunk(10)
                 .reader(jpaPagingItemReader)
-                .processor(new ItemProcessor<Input, Output>() {
-                    @Override
-                    public Output process(Input item) throws Exception {
-                        Thread.sleep(1000*1);
-                        System.out.println("### Process "+(++process)+"번 "+item);
-                        return new Output();
-                    }
-                }).writer(new ItemWriter<Output>() {
-                    @Override
-                    public void write(List<? extends Output> items) throws Exception {
-                        Thread.sleep(1000*1);
-                        System.out.println("### Writer "+(++writer)+"번");
-                        System.out.println();
-                    }
-                })
+                .processor(processor)
+                .writer(jpaItemWriter)
+                .build();
+    }
+
+    @Bean
+    public JpaItemWriter<Output> jpaItemWriter(){
+        return new JpaItemWriterBuilder<Output>()
+                .entityManagerFactory(entityManagerFactory)
+                .usePersist(true)
                 .build();
     }
 

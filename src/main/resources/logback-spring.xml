@@ -40,9 +40,9 @@
 
     <logger name="jdbc" level="OFF"/>
     <logger name="jdbc.connection" level="OFF"/>
-    <logger name="jdbc.resultsettable" level="INFO"/>
+    <logger name="jdbc.resultsettable" level="OFF"/>
     <logger name="jdbc.sqltiming" level="OFF"/>
-    <logger name="jdbc.sqlonly" level="INFO"/>
+    <logger name="jdbc.sqlonly" level="OFF"/>
 
 
 
