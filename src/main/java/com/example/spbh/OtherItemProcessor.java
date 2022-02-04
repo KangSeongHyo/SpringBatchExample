@@ -8,7 +8,9 @@ public class OtherItemProcessor implements ItemProcessor<Input,Output> {
 
     @Override
     public Output process(Input item) throws Exception {
-        System.out.println("## Other - "+item);
-        return null;
+        System.out.println(Thread.currentThread()+" ## Other - "+item +" AccessException");
+
+        throw new IllegalAccessException("임의로 예외발생 시키기");
+        // return null;
     }
 }

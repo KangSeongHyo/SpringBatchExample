@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 public class AItemProcessor implements ItemProcessor<Input,Output> {
     @Override
     public Output process(Input item) throws Exception {
-        System.out.println("## A 처리 - "+item);
-        return null;
+        System.out.println(Thread.currentThread()+" ## A 처리 - "+item+" ArgumentException");
+        throw new IllegalArgumentException("임의로 예외발생 시키기");
     }
 }

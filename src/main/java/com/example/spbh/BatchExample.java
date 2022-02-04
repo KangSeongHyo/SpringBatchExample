@@ -9,6 +9,10 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.step.skip.SkipPolicy;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.database.JpaPagingItemReader;
 import org.springframework.batch.item.database.builder.JpaItemWriterBuilder;
@@ -16,8 +20,8 @@ import org.springframework.batch.item.database.orm.JpaNamedQueryProvider;
 import org.springframework.batch.item.support.ClassifierCompositeItemProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
-import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
 @Slf4j
@@ -29,31 +33,46 @@ public class BatchExample {
     private final JobBuilderFactory jobBuilderFactory;
     private final StepBuilderFactory stepBuilderFactory;
     private final EntityManagerFactory entityManagerFactory;
-    private final EntityManager entityManager;
-    private final InputRepository inputRepository;
-//
-//    @Bean
-//    public Step step(Tasklet tasklet){
-//        return stepBuilderFactory.get("Step 이름")
-//                .tasklet(tasklet)
-//                .build();
-//    }
-//
-
-    private static int reader = 0;
-    private static int process = 0;
-    private static int writer = 0;
-
     private final AItemProcessor aItemProcessor;
     private final BItemProcessor bItemProcessor;
     private final OtherItemProcessor otherItemProcessor;
 
     @Bean
-    public Step step(JpaPagingItemReader<Input> jpaPagingItemReader,JpaItemWriter<Output> jpaItemWriter){
+    public Job job(Step step){
+        return jobBuilderFactory.get("Job")
+                .incrementer(new RunIdIncrementer())
+                .start(step)
+                .build();
+    }
 
+    @Bean
+    public Step step(ItemReader<Input> jpaPagingItemReader, ItemWriter<Output> jpaItemWriter, ItemProcessor<Input,Output> itemProcessor){
+
+        return stepBuilderFactory.get("Chunk")
+                .<Input,Output>chunk(10)
+                .reader(jpaPagingItemReader)
+                .processor(itemProcessor)
+                .writer(jpaItemWriter)
+                .faultTolerant()
+                    .skipPolicy(skipPolicy())
+                .taskExecutor(new SimpleAsyncTaskExecutor())
+                    .throttleLimit(3)
+                .build();
+    }
+
+    public SkipPolicy skipPolicy(){
+        CustomSkipPolicy skipPolicy = new CustomSkipPolicy();
+        skipPolicy.setExceptionClassMap(IllegalArgumentException.class,3);
+        skipPolicy.setExceptionClassMap(IllegalAccessException.class,3);
+        return skipPolicy;
+    }
+
+
+    @Bean
+    public ItemProcessor<Input,Output> itemProcessor(){
         ClassifierCompositeItemProcessor<Input, Output> processor = new ClassifierCompositeItemProcessor<>();
 
-         processor.setClassifier(input -> {
+        processor.setClassifier(input -> {
             switch (input.getType()){
                 case "A" :
                     return aItemProcessor;
@@ -64,12 +83,7 @@ public class BatchExample {
             }
         });
 
-        return stepBuilderFactory.get("Chunk")
-                .<Input,Output>chunk(10)
-                .reader(jpaPagingItemReader)
-                .processor(processor)
-                .writer(jpaItemWriter)
-                .build();
+        return processor;
     }
 
     @Bean
@@ -92,20 +106,10 @@ public class BatchExample {
         jpaPagingItemReader.setQueryProvider(queryProvider);
         jpaPagingItemReader.setPageSize(5);
         jpaPagingItemReader.setTransacted(false);
-         /* JpaNativeQueryProvider<Input> queryProvider = new JpaNativeQueryProvider<>();
-        queryProvider.setSqlQuery("SELECT * FROM INPUT");
-        queryProvider.setEntityManager(entityManager);
-        queryProvider.setEntityClass(Input.class);*/
+        jpaPagingItemReader.setSaveState(false);
 
 
         return jpaPagingItemReader;
     }
 
-    @Bean
-    public Job job(Step step){
-        return jobBuilderFactory.get("Job")
-                .incrementer(new RunIdIncrementer())
-                .start(step)
-                .build();
-    }
 }
